@@ -1,0 +1,269 @@
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <unordered_map>
+#include <algorithm>
+#include <limits>
+
+using namespace std;
+
+/* helper methods */
+namespace helper {
+    string upper_string(const string &str) {
+        string upper = str;
+        transform(upper.begin(), upper.end(), upper.begin(), ::toupper);
+        return upper;
+    }
+
+    size_t find_str_ci(const string &str, const string &substr) {
+        return upper_string(str).find(upper_string(substr));
+    }
+}
+
+class Book {
+    string isbn;
+    string author;
+    string title;
+    bool borrowed;
+    double fineRate;
+
+public:
+    Book() : isbn(""), author(""), title(""), borrowed(false), fineRate(5.0) {}
+
+    Book(string i, string a, string t)
+        : isbn(i), author(a), title(t), borrowed(false), fineRate(5.0) {}
+
+    string getISBN() const { return isbn; }
+    string getAuthor() const { return author; }
+    string getTitle() const { return title; }
+    bool isBorrowed() const { return borrowed; }
+    double getFineRate() const { return fineRate; }
+
+    void setAuthor(string a) { author = a; }
+    void setTitle(string t) { title = t; }
+    void setBorrowed(bool b) { borrowed = b; }
+    void setFineRate(double r) { fineRate = r; }
+};
+
+class Library {
+    unordered_map<string, Book*> books;
+
+public:
+    ~Library() {
+        for (auto &p : books)
+            delete p.second;
+        books.clear();
+    }
+
+    void clearLibrary() {
+        for (auto &p : books)
+            delete p.second;
+        books.clear();
+    }
+
+    void addBook(string isbn, string author, string title) {
+        if (books.count(isbn)) {
+            cout << "ISBN already exists\n";
+            return;
+        }
+        books[isbn] = new Book(isbn, author, title);
+        cout << "Book added successfully\n";
+    }
+
+    void viewAllBooks() const {
+        cout << "\nISBN\tAuthor\t\tTitle\t\tStatus\n";
+        cout << "-----------------------------------------------\n";
+        for (auto &p : books) {
+            cout << p.second->getISBN() << "\t"
+                 << p.second->getAuthor() << "\t\t"
+                 << p.second->getTitle() << "\t\t"
+                 << (p.second->isBorrowed() ? "Borrowed" : "Available") << endl;
+        }
+    }
+
+    void updateBook(string isbn, string author, string title) {
+        if (!books.count(isbn)) {
+            cout << "Book not found\n";
+            return;
+        }
+        books[isbn]->setAuthor(author);
+        books[isbn]->setTitle(title);
+        cout << "Book updated\n";
+    }
+
+    void delBook(string isbn) {
+        if (!books.count(isbn)) {
+            cout << "Book not found\n";
+            return;
+        }
+        delete books[isbn];
+        books.erase(isbn);
+        cout << "Book deleted\n";
+    }
+
+    void borrowBook(string isbn) {
+        if (!books.count(isbn)) {
+            cout << "Book not found\n";
+            return;
+        }
+        if (books[isbn]->isBorrowed()) {
+            cout << "Book already borrowed\n";
+            return;
+        }
+        books[isbn]->setBorrowed(true);
+        cout << "Book borrowed successfully\n";
+    }
+
+    void returnBook(string isbn) {
+        if (!books.count(isbn)) {
+            cout << "Book not found\n";
+            return;
+        }
+        books[isbn]->setBorrowed(false);
+        cout << "Book returned successfully\n";
+    }
+
+    void searchBooks(string key) const {
+        int found = 0;
+        for (auto &p : books) {
+            if (p.second->getISBN() == key ||
+                helper::find_str_ci(p.second->getAuthor(), key) != string::npos ||
+                helper::find_str_ci(p.second->getTitle(), key) != string::npos) {
+
+                cout << "\nISBN: " << p.second->getISBN()
+                     << "\nAuthor: " << p.second->getAuthor()
+                     << "\nTitle: " << p.second->getTitle()
+                     << "\nStatus: " << (p.second->isBorrowed() ? "Borrowed" : "Available") << endl;
+                found++;
+            }
+        }
+        if (!found) cout << "No books found\n";
+    }
+
+    void updateFineRate(string isbn, double rate) {
+        if (!books.count(isbn)) {
+            cout << "Book not found\n";
+            return;
+        }
+        books[isbn]->setFineRate(rate);
+        cout << "Fine rate updated\n";
+    }
+
+    void calcFine(string isbn, int days) {
+        if (!books.count(isbn)) {
+            cout << "Book not found\n";
+            return;
+        }
+        cout << "Total fine: " << days * books[isbn]->getFineRate() << endl;
+    }
+
+    void saveToFile(string path) const {
+        ofstream out(path.c_str());
+        for (auto &p : books) {
+            out << p.second->getISBN() << "%"
+                << p.second->getAuthor() << "%"
+                << p.second->getTitle() << "%"
+                << p.second->isBorrowed() << "%"
+                << p.second->getFineRate() << endl;
+        }
+        out.close();
+        cout << "Data saved\n";
+    }
+
+    void loadFromFile(string path) {
+        clearLibrary();
+        ifstream in(path.c_str());
+        string line;
+        while (getline(in, line)) {
+            size_t p1 = line.find("%");
+            size_t p2 = line.find("%", p1 + 1);
+            size_t p3 = line.find("%", p2 + 1);
+            size_t p4 = line.find("%", p3 + 1);
+
+            string isbn = line.substr(0, p1);
+            string author = line.substr(p1 + 1, p2 - p1 - 1);
+            string title = line.substr(p2 + 1, p3 - p2 - 1);
+            bool borrowed = stoi(line.substr(p3 + 1, p4 - p3 - 1));
+            double fine = stod(line.substr(p4 + 1));
+
+            books[isbn] = new Book(isbn, author, title);
+            books[isbn]->setBorrowed(borrowed);
+            books[isbn]->setFineRate(fine);
+        }
+        in.close();
+        cout << "Data loaded\n";
+    }
+};
+
+int main() {
+    Library lib;
+    int choice;
+
+    while (true) {
+        cout << "\n1.Add Book\n2.View Books\n3.Update Book\n4.Delete Book\n"
+             << "5.Borrow Book\n6.Return Book\n7.Search Book\n"
+             << "8.Update Fine\n9.Calculate Fine\n10.Save\n11.Load\n0.Exit\n";
+        cout << "Enter choice: ";
+        cin >> choice;
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+
+        if (choice == 0) break;
+
+        string isbn, author, title, path;
+        double rate;
+        int days;
+
+        switch (choice) {
+            case 1:
+                cout << "ISBN: "; getline(cin, isbn);
+                cout << "Author: "; getline(cin, author);
+                cout << "Title: "; getline(cin, title);
+                lib.addBook(isbn, author, title);
+                break;
+            case 2: lib.viewAllBooks(); break;
+            case 3:
+                cout << "ISBN: "; getline(cin, isbn);
+                cout << "Author: "; getline(cin, author);
+                cout << "Title: "; getline(cin, title);
+                lib.updateBook(isbn, author, title);
+                break;
+            case 4:
+                cout << "ISBN: "; getline(cin, isbn);
+                lib.delBook(isbn);
+                break;
+            case 5:
+                cout << "ISBN: "; getline(cin, isbn);
+                lib.borrowBook(isbn);
+                break;
+            case 6:
+                cout << "ISBN: "; getline(cin, isbn);
+                lib.returnBook(isbn);
+                break;
+            case 7:
+                cout << "Search: "; getline(cin, title);
+                lib.searchBooks(title);
+                break;
+            case 8:
+                cout << "ISBN: "; getline(cin, isbn);
+                cout << "Rate: "; cin >> rate;
+                lib.updateFineRate(isbn, rate);
+                break;
+            case 9:
+                cout << "ISBN: "; getline(cin, isbn);
+                cout << "Late days: "; cin >> days;
+                lib.calcFine(isbn, days);
+                break;
+            case 10:
+                cout << "File path: "; getline(cin, path);
+                lib.saveToFile(path);
+                break;
+            case 11:
+                cout << "File path: "; getline(cin, path);
+                lib.loadFromFile(path);
+                break;
+            default:
+                cout << "Invalid choice\n";
+        }
+    }
+    return 0;
+}
